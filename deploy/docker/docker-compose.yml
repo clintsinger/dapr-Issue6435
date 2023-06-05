@@ -1,0 +1,91 @@
+version: '3.4'
+
+networks:
+  default:
+    name: service-net
+    external: true      
+      
+services:
+
+  redis:
+    container_name: redis-master
+    image: redis
+    expose:
+      - 6379
+  
+  placement:
+    container_name: placement
+    image: "daprio/dapr"
+    command: ["./placement", "-port", "50006", "--log-as-json"]
+    ports: 
+      - "50006:50006"
+  
+#===============================================
+  service.a:
+    container_name: service-a
+    image: ${DOCKER_REGISTRY}issue6435/service/a
+    build:
+      context: ../..
+      dockerfile: src/ServiceA/Dockerfile
+    environment:
+      - DAPR_HTTP_PORT=3500
+      - DAPR_GRPC_PORT=4001
+    volumes:
+      - "./config/:/app/config"
+    depends_on:
+      - redis
+      - placement
+
+  service.a.sidecar:
+    container_name: sidecar-service-a
+    image: "daprio/daprd:1.11.0-rc.7"
+    command: ["./daprd",
+      "-app-id", "service-a",
+      "-app-port", "80",
+      "-placement-host-address", "placement:50006",
+      "-dapr-http-port", "3500",
+      "-dapr-grpc-port", "4001",      
+      "-log-level", "debug",
+      "-components-path", "/components",
+      "--log-as-json"]
+    volumes:
+      - "./components/:/components"
+      - "./config/:/config"
+    depends_on:
+      - service.a
+    network_mode: "service:service.a"
+  
+#===============================================
+  service.b:
+    container_name: service-b
+    image: ${DOCKER_REGISTRY}issue6435/service/b
+    build:
+      context: ../..
+      dockerfile: src/ServiceB/Dockerfile
+    environment:
+      - DAPR_HTTP_PORT=3500
+      - DAPR_GRPC_PORT=4001
+    volumes:
+      - "./config/:/app/config"
+    depends_on:
+      - redis
+      - placement
+
+  service.b.sidecar:
+    container_name: sidecar-service-b
+    image: "daprio/daprd:1.11.0-rc.7"
+    command: ["./daprd",
+      "-app-id", "service-b",
+      "-app-port", "80",
+      "-placement-host-address", "placement:50006",
+      "-dapr-http-port", "3500",
+      "-dapr-grpc-port", "4001",      
+      "-log-level", "debug",
+      "-components-path", "/components",
+      "--log-as-json"]
+    volumes:
+      - "./components/:/components"
+      - "./config/:/config"
+    depends_on:
+      - service.b
+    network_mode: "service:service.b"

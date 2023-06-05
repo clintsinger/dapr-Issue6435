@@ -1,0 +1,1 @@
+Project to repro Dapr issue [6435](https://github.com/dapr/dapr/issues/6435)
